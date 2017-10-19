@@ -39,6 +39,7 @@ import static org.eclipse.californium.core.coap.CoAP.Type.*;
 import static org.eclipse.californium.core.coap.OptionNumberRegistry.OBSERVE;
 import static org.eclipse.californium.core.test.lockstep.IntegrationTestTools.*;
 import static org.eclipse.californium.core.test.MessageExchangeStoreTool.assertAllExchangesAreCompleted;
+import static org.eclipse.californium.core.test.MessageExchangeStoreTool.createUdpTestStack;
 
 import static org.hamcrest.CoreMatchers.*;
 import static org.junit.Assert.*;
@@ -58,7 +59,11 @@ import org.eclipse.californium.core.coap.Response;
 import org.eclipse.californium.core.network.CoapEndpoint;
 import org.eclipse.californium.core.network.Endpoint;
 import org.eclipse.californium.core.network.InMemoryMessageExchangeStore;
+import org.eclipse.californium.core.network.Outbox;
 import org.eclipse.californium.core.network.config.NetworkConfig;
+import org.eclipse.californium.core.network.stack.BlockwiseLayer;
+import org.eclipse.californium.core.network.stack.CoapStack;
+import org.eclipse.californium.core.network.stack.CoapUdpStack;
 import org.eclipse.californium.rule.CoapNetworkRule;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -91,6 +96,7 @@ public class BlockwiseClientSideTest {
 
 	private LockstepEndpoint server;
 	private Endpoint client;
+	private CoapStack stack;
 	private int mid = 8000;
 	private String respPayload;
 	private String reqtPayload;
@@ -118,7 +124,16 @@ public class BlockwiseClientSideTest {
 	public void setupEndpoints() throws Exception {
 
 		clientExchangeStore = new InMemoryMessageExchangeStore(config);
-		client = new CoapEndpoint(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), config, clientExchangeStore);
+
+		client = new CoapEndpoint(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), config,
+				clientExchangeStore) {
+
+			@Override
+			protected CoapStack createUdpStack(NetworkConfig config, Outbox outbox) {
+				stack = createUdpTestStack(config, outbox);
+				return stack;
+			}
+		};
 		client.addInterceptor(clientInterceptor);
 		client.start();
 		System.out.println("Client binds to port " + client.getAddress().getPort());
@@ -128,7 +143,7 @@ public class BlockwiseClientSideTest {
 	@After
 	public void shutdownEndpoints() {
 		try {
-			assertAllExchangesAreCompleted(config, clientExchangeStore);
+			assertAllExchangesAreCompleted(config, clientExchangeStore, stack);
 		} finally {
 			printServerLog(clientInterceptor);
 			client.destroy();
