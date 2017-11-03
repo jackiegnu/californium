@@ -20,6 +20,7 @@
  *                                                 explicit String concatenation
  * Joe Magerramov (Amazon Web Services) - CoAP over TCP support.
  * Achim Kraus (Bosch Software Innovations GmbH) - derived from UDP and TCP CoAP stack
+ * Achim Kraus (Bosch Software Innovations GmbH) - expose layers with protected scope.
  ******************************************************************************/
 package org.eclipse.californium.core.network.stack;
 
@@ -71,6 +72,15 @@ public abstract class BaseCoapStack implements CoapStack {
 		}
 		builder.add(bottom);
 		layers = builder.create();
+	}
+
+	/**
+	 * Get layers.
+	 * 
+	 * @return list of layers.
+	 */
+	protected final List<Layer> getLayers() {
+		return layers;
 	}
 
 	@Override

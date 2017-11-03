@@ -18,6 +18,7 @@ package org.eclipse.californium.core.test;
 
 import static org.junit.Assert.assertTrue;
 
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -26,7 +27,12 @@ import org.eclipse.californium.CheckCondition;
 import org.eclipse.californium.TestTools;
 import org.eclipse.californium.core.network.InMemoryMessageExchangeStore;
 import org.eclipse.californium.core.network.MessageExchangeStore;
+import org.eclipse.californium.core.network.Outbox;
 import org.eclipse.californium.core.network.config.NetworkConfig;
+import org.eclipse.californium.core.network.stack.BlockwiseLayer;
+import org.eclipse.californium.core.network.stack.CoapStack;
+import org.eclipse.californium.core.network.stack.CoapUdpStack;
+import org.eclipse.californium.core.network.stack.Layer;
 
 /**
  * Test tools for MessageExchangeStore.
@@ -96,15 +102,73 @@ public class MessageExchangeStoreTool {
 			STORE_LOGGER.setLevel(level);
 		}
 	}
-	
-	public static void waitUntilDeduplicatorShouldBeEmpty(final int exchangeLifetime, final int sweepInterval, CheckCondition check) {
+
+	/**
+	 * Assert, that exchanges store  and block-wise layer  are empty.
+	 * 
+	 * dump exchanges, if not empty.
+	 * 
+	 * @param config used network configuration.
+	 * @param exchangeStore message exchange store.
+	 */
+	public static void assertAllExchangesAreCompleted(NetworkConfig config, final MessageExchangeStore exchangeStore, final CoapStack stack) {
+		assertTrue("Please create stack with ", stack instanceof CoapUdpTestStack);
+		int exchangeLifetime = (int) config.getLong(NetworkConfig.Keys.EXCHANGE_LIFETIME);
+		int sweepInterval = config.getInt(NetworkConfig.Keys.MARK_AND_SWEEP_INTERVAL);
+		final CoapUdpTestStack testStack = (CoapUdpTestStack) stack;
+		
+		Level level = STORE_LOGGER.getLevel();
+		
+		try {
+			waitUntilDeduplicatorShouldBeEmpty(exchangeLifetime, sweepInterval, new CheckCondition() {
+
+				@Override
+				public boolean isFulFilled() throws IllegalStateException {
+					return exchangeStore.isEmpty() && testStack.isEmpty();
+				}
+			});
+			STORE_LOGGER.setLevel(Level.FINER);
+			assertTrue("message exchange store still contains exchanges", exchangeStore.isEmpty());
+			assertTrue("stack still contains information", testStack.isEmpty());
+		} finally {
+			STORE_LOGGER.setLevel(level);
+		}
+	}
+
+	public static void waitUntilDeduplicatorShouldBeEmpty(final int exchangeLifetime, final int sweepInterval,
+			CheckCondition check) {
 		try {
 			int timeToWait = exchangeLifetime + sweepInterval + 300; // milliseconds
-			System.out.println("Wait until deduplicator should be empty (" + timeToWait/1000f + " seconds)");
+			System.out.println("Wait until deduplicator should be empty (" + timeToWait / 1000f + " seconds)");
 			TestTools.waitForCondition(timeToWait, timeToWait / 10, TimeUnit.MILLISECONDS, check);
 		} catch (InterruptedException e) {
 			Thread.currentThread().interrupt();
 		}
 	}
+	
+	public static CoapStack createUdpTestStack(NetworkConfig config, Outbox outbox) {
+		return new CoapUdpTestStack(config, outbox);
+	}
 
+	public static class CoapUdpTestStack extends CoapUdpStack {
+
+		private final BlockwiseLayer blockwiseLayer;
+
+		public CoapUdpTestStack(NetworkConfig config, Outbox outbox) {
+			super(config, outbox);
+			BlockwiseLayer blockwiseLayer = null;
+			List<Layer> layers = getLayers();
+			for (Layer layer : layers) {
+				if (layer instanceof BlockwiseLayer) {
+					blockwiseLayer = (BlockwiseLayer) layer;
+					break;
+				}
+			}
+			this.blockwiseLayer = blockwiseLayer;
+		}
+
+		public boolean isEmpty() {
+			return blockwiseLayer == null || blockwiseLayer.isEmpty();
+		}
+	}
 }
