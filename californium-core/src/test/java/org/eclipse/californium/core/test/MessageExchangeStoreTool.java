@@ -16,10 +16,8 @@
  ******************************************************************************/
 package org.eclipse.californium.core.test;
 
-import static org.eclipse.californium.core.test.MessageExchangeStoreTool.createUdpTestStack;
 import static org.junit.Assert.assertTrue;
 
-import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -108,32 +106,30 @@ public class MessageExchangeStoreTool {
 	}
 
 	/**
-	 * Assert, that exchanges store  and block-wise layer  are empty.
+	 * Assert, that exchanges store and block-wise layer are empty.
 	 * 
 	 * dump exchanges, if not empty.
 	 * 
 	 * @param config used network configuration.
 	 * @param exchangeStore message exchange store.
 	 */
-	public static void assertAllExchangesAreCompleted(NetworkConfig config, final MessageExchangeStore exchangeStore, final CoapStack stack) {
-		assertTrue("Please create stack with ", stack instanceof CoapUdpTestStack);
+	public static void assertAllExchangesAreCompleted(final CoapTestEndpoint endpoint) {
+		NetworkConfig config = endpoint.getConfig();
 		int exchangeLifetime = (int) config.getLong(NetworkConfig.Keys.EXCHANGE_LIFETIME);
 		int sweepInterval = config.getInt(NetworkConfig.Keys.MARK_AND_SWEEP_INTERVAL);
-		final CoapUdpTestStack testStack = (CoapUdpTestStack) stack;
-		
+
 		Level level = STORE_LOGGER.getLevel();
-		
+
 		try {
 			waitUntilDeduplicatorShouldBeEmpty(exchangeLifetime, sweepInterval, new CheckCondition() {
 
 				@Override
 				public boolean isFulFilled() throws IllegalStateException {
-					return exchangeStore.isEmpty() && testStack.isEmpty();
+					return endpoint.isEmpty();
 				}
 			});
 			STORE_LOGGER.setLevel(Level.FINER);
-			assertTrue("message exchange store still contains exchanges", exchangeStore.isEmpty());
-			assertTrue("stack still contains information", testStack.isEmpty());
+			assertTrue("endpoint still contains states", endpoint.isEmpty());
 		} finally {
 			STORE_LOGGER.setLevel(level);
 		}
@@ -149,12 +145,8 @@ public class MessageExchangeStoreTool {
 			Thread.currentThread().interrupt();
 		}
 	}
-	
-	public static CoapStack createUdpTestStack(NetworkConfig config, Outbox outbox) {
-		return new CoapUdpTestStack(config, outbox);
-	}
 
-	public static class CoapUdpTestStack extends CoapUdpStack {
+	private static class CoapUdpTestStack extends CoapUdpStack {
 
 		private final BlockwiseLayer blockwiseLayer;
 
@@ -178,14 +170,26 @@ public class MessageExchangeStoreTool {
 
 	public static class CoapTestEndpoint extends CoapEndpoint {
 
-		public CoapTestEndpoint(InetSocketAddress bind, NetworkConfig config, final MessageExchangeStore exchangeStore) {
+		private final MessageExchangeStore exchangeStore;
+		private CoapUdpTestStack stack;
 
-			@Override
-			protected CoapStack createUdpStack(NetworkConfig config, Outbox outbox) {
-				stack = createUdpTestStack(config, outbox);
-				return stack;
-			}
-		};
+		public CoapTestEndpoint(InetSocketAddress bind, NetworkConfig config, MessageExchangeStore exchangeStore) {
+			super(bind, config, exchangeStore);
+			this.exchangeStore = exchangeStore;
+		}
 
+		public CoapTestEndpoint(InetSocketAddress bind, NetworkConfig config) {
+			this(bind, config, new InMemoryMessageExchangeStore(config));
+		}
+
+		@Override
+		protected CoapStack createUdpStack(NetworkConfig config, Outbox outbox) {
+			stack = new CoapUdpTestStack(config, outbox);
+			return stack;
+		}
+
+		public boolean isEmpty() {
+			return exchangeStore.isEmpty() && (stack == null || stack.isEmpty());
+		}
 	}
 }

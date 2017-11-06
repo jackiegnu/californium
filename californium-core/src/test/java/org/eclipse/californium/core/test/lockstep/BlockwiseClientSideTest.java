@@ -39,7 +39,7 @@ import static org.eclipse.californium.core.coap.CoAP.Type.*;
 import static org.eclipse.californium.core.coap.OptionNumberRegistry.OBSERVE;
 import static org.eclipse.californium.core.test.lockstep.IntegrationTestTools.*;
 import static org.eclipse.californium.core.test.MessageExchangeStoreTool.assertAllExchangesAreCompleted;
-import static org.eclipse.californium.core.test.MessageExchangeStoreTool.createUdpTestStack;
+import static org.eclipse.californium.core.test.MessageExchangeStoreTool.CoapTestEndpoint;
 
 import static org.hamcrest.CoreMatchers.*;
 import static org.junit.Assert.*;
@@ -56,14 +56,7 @@ import org.eclipse.californium.core.CoapResponse;
 import org.eclipse.californium.core.coap.BlockOption;
 import org.eclipse.californium.core.coap.Request;
 import org.eclipse.californium.core.coap.Response;
-import org.eclipse.californium.core.network.CoapEndpoint;
-import org.eclipse.californium.core.network.Endpoint;
-import org.eclipse.californium.core.network.InMemoryMessageExchangeStore;
-import org.eclipse.californium.core.network.Outbox;
 import org.eclipse.californium.core.network.config.NetworkConfig;
-import org.eclipse.californium.core.network.stack.BlockwiseLayer;
-import org.eclipse.californium.core.network.stack.CoapStack;
-import org.eclipse.californium.core.network.stack.CoapUdpStack;
 import org.eclipse.californium.rule.CoapNetworkRule;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -95,13 +88,11 @@ public class BlockwiseClientSideTest {
 	private static NetworkConfig config;
 
 	private LockstepEndpoint server;
-	private Endpoint client;
-	private CoapStack stack;
+	private CoapTestEndpoint client;
 	private int mid = 8000;
 	private String respPayload;
 	private String reqtPayload;
 	private ClientBlockwiseInterceptor clientInterceptor = new ClientBlockwiseInterceptor();
-	private InMemoryMessageExchangeStore clientExchangeStore;
 
 	@BeforeClass
 	public static void init() {
@@ -123,18 +114,8 @@ public class BlockwiseClientSideTest {
 	@Before
 	public void setupEndpoints() throws Exception {
 
-		clientExchangeStore = new InMemoryMessageExchangeStore(config);
 
-		client = new CoapEndpoint(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), config,
-				clientExchangeStore) {
-
-			@Override
-			protected CoapStack createUdpStack(NetworkConfig config, Outbox outbox) {
-				stack = createUdpTestStack(config, outbox);
-				return stack;
-			}
-		};
-		client.addInterceptor(clientInterceptor);
+		client = new CoapTestEndpoint(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), config);		client.addInterceptor(clientInterceptor);
 		client.start();
 		System.out.println("Client binds to port " + client.getAddress().getPort());
 		server = createLockstepEndpoint(client.getAddress());
@@ -143,7 +124,7 @@ public class BlockwiseClientSideTest {
 	@After
 	public void shutdownEndpoints() {
 		try {
-			assertAllExchangesAreCompleted(config, clientExchangeStore, stack);
+			assertAllExchangesAreCompleted(client);
 		} finally {
 			printServerLog(clientInterceptor);
 			client.destroy();
@@ -1036,8 +1017,6 @@ public class BlockwiseClientSideTest {
 
 		System.out.println("Cancel request " + request);
 		request.cancel();
-		assertTrue("ExchangeStore must be empty", clientExchangeStore.isEmpty());
-
 	}
 
 	/**
@@ -1064,8 +1043,6 @@ public class BlockwiseClientSideTest {
 
 		System.out.println("Cancel request " + request);
 		request.cancel();
-		assertTrue("ExchangeStore must be empty", clientExchangeStore.isEmpty());
-
 	}
 
 	/**
