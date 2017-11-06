@@ -16,8 +16,11 @@
  ******************************************************************************/
 package org.eclipse.californium.core.test;
 
+import static org.eclipse.californium.core.test.MessageExchangeStoreTool.createUdpTestStack;
 import static org.junit.Assert.assertTrue;
 
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
@@ -25,6 +28,7 @@ import java.util.logging.Logger;
 
 import org.eclipse.californium.CheckCondition;
 import org.eclipse.californium.TestTools;
+import org.eclipse.californium.core.network.CoapEndpoint;
 import org.eclipse.californium.core.network.InMemoryMessageExchangeStore;
 import org.eclipse.californium.core.network.MessageExchangeStore;
 import org.eclipse.californium.core.network.Outbox;
@@ -170,5 +174,18 @@ public class MessageExchangeStoreTool {
 		public boolean isEmpty() {
 			return blockwiseLayer == null || blockwiseLayer.isEmpty();
 		}
+	}
+
+	public static class CoapTestEndpoint extends CoapEndpoint {
+
+		public CoapTestEndpoint(InetSocketAddress bind, NetworkConfig config, final MessageExchangeStore exchangeStore) {
+
+			@Override
+			protected CoapStack createUdpStack(NetworkConfig config, Outbox outbox) {
+				stack = createUdpTestStack(config, outbox);
+				return stack;
+			}
+		};
+
 	}
 }
