@@ -23,6 +23,9 @@
  *                                                    should not depend on that.
  *    Achim Kraus (Bosch Software Innovations GmbH) - use timeouts for waiting on
  *                                                    messages.
+ *    Achim Kraus (Bosch Software Innovations GmbH) - add sleep to stop/start test
+ *                                                    to ensure, client detects the
+ *                                                    lost connection.
  ******************************************************************************/
 package org.eclipse.californium.elements.tcp;
 
@@ -244,6 +247,8 @@ public class TcpEndpointContextTest {
 
 		/* stop / start the server */
 		server.stop();
+		/* make client detect the closed connection, but much less the the idle timeout */
+		Thread.sleep(TimeUnit.MILLISECONDS.convert(ConnectorTestUtil.IDLE_TIMEOUT_RECONNECT_IN_S, TimeUnit.SECONDS) / 5);
 		server.start();
 
 		clientCallback = new SimpleMessageCallback();
